@@ -1,2 +1,4 @@
 Flask==3.0.3
-google-generativeai
+google-genai
+sqlite3
+dotenv
