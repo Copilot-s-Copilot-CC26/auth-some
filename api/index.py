@@ -12,6 +12,9 @@ import resemblyzer
 from fastapi import FastAPI, File
 from resemblyzer import VoiceEncoder, preprocess_wav
 from pathlib import Path
+from PIL import Image
+import face_recognition
+from io import BytesIO
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
@@ -25,9 +28,14 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
-            voicedata BLOB
+            voicedata BLOB,
+            image BLOB
         )
     """)
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN image BLOB")
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.commit()
     conn.close()
 
@@ -51,19 +59,21 @@ def create_user():
     username = request.form.get("username")
     password = request.form.get("password")
     voice_file = request.files.get("voicedata")
+    image_file = request.files.get("image")
     
-    if not username or not password or not voice_file:
-        return jsonify({"error": "Username, password, and voice file are required"}), 400
+    if not username or not password:
+        return jsonify({"error": "Username and password are required"}), 400
     
     # Read the file content as bytes
-    voicedata = voice_file.read()
+    voicedata = voice_file.read() if voice_file else None
+    imagedata = image_file.read() if image_file else None
     
     try:
         conn = sqlite3.connect(sqliteurl)
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO users (username, password, voicedata) VALUES (?, ?, ?)",
-            (username, password, voicedata)
+            "INSERT INTO users (username, password, voicedata, image) VALUES (?, ?, ?, ?)",
+            (username, password, voicedata, imagedata)
         )
         conn.commit()
         return jsonify({"message": "User created"}), 201
@@ -85,6 +95,20 @@ def get_voicedata(username):
         return row[0], 200, {'Content-Type': 'audio/wav'}
     else:
         return jsonify({"error": "User not found or no voice data"}), 404
+
+
+
+@app.route("/api/get_imagedata/<username>", methods=["GET"])
+def get_imagedata(username):
+    conn = sqlite3.connect(sqliteurl)
+    cursor = conn.cursor()
+    cursor.execute("SELECT image FROM users WHERE username = ?", (username,))
+    row = cursor.fetchone()
+    conn.close()
+    if row and row[0]:
+        return row[0], 200, {'Content-Type': 'image/jpeg'}
+    else:
+        return jsonify({"error": "User not found or no image data"}), 404
 
 
 
@@ -208,6 +232,36 @@ def save_blob_to_wav(blob_data: bytes, filename: str):
     with open(filename, "wb") as f:
         f.write(blob_data)
 
+def compare_faces(image1_bytes, image2_bytes):
+    try:
+        # Load images from bytes
+        img1 = Image.open(BytesIO(image1_bytes))
+        img2 = Image.open(BytesIO(image2_bytes))
+        
+        # Convert to RGB if needed
+        img1 = img1.convert('RGB')
+        img2 = img2.convert('RGB')
+        
+        # Get face encodings
+        enc1 = face_recognition.face_encodings(np.array(img1))
+        enc2 = face_recognition.face_encodings(np.array(img2))
+        
+        if not enc1:
+            return {"error": "No face found in first image"}
+        if not enc2:
+            return {"error": "No face found in second image"}
+        
+        # Compare faces
+        results = face_recognition.compare_faces([enc1[0]], enc2[0])
+        distance = face_recognition.face_distance([enc1[0]], enc2[0])[0]
+        
+        return {
+            "match": bool(results[0]),
+            "distance": float(distance)
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 @fastapi_app.route("/api/compare_voices", methods=["POST"])
 async def compare_voices_endpoint(
     enrolled: bytes = File(...),
@@ -257,4 +311,20 @@ def verify_text_code():
     if result.status == "approved":
         return jsonify({"message": "Verified!"}), 200
     return jsonify({"error": "Invalid code"}), 401
+
+@app.route("/api/compare_faces", methods=["POST"])
+def compare_faces_endpoint():
+    enrolled_file = request.files.get("enrolled")
+    verify_file = request.files.get("verify")
+    
+    if not enrolled_file or not verify_file:
+        return jsonify({"error": "Both enrolled and verify images are required"}), 400
+    
+    enrolled_data = enrolled_file.read()
+    verify_data = verify_file.read()
+    
+    result = compare_faces(enrolled_data, verify_data)
+    
+    return jsonify(result), 200
+
 

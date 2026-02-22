@@ -3,3 +3,7 @@ google-genai
 dotenv
 resend
 twilio
+face_recognition
+Pillow
+numpy
+resemblyzer
