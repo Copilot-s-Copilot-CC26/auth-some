@@ -14,7 +14,7 @@ const VerifyPhone = () => {
     if (!phoneText) return false
 
     const phoneTextRegex =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      /^(\+1\s?)?(\(?\d{3}\)?[\s-]?)\d{3}[\s-]?\d{4}$/
 
     return phoneTextRegex.test(phoneText.trim())
   }
