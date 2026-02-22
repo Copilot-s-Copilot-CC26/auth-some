@@ -5,6 +5,7 @@ import HCaptcha from "@hcaptcha/react-hcaptcha";
 import {useEffect, useRef, useState} from "react";
 import dynamic from "next/dynamic"
 import WebcamCapture from "@/components/webcam-capture";
+import VerifyEmail from "@/components/verify-email";
 
 const CoordinatePicker = dynamic(
   () => import("@/components/coordinate-picker"),
@@ -52,7 +53,7 @@ const Page = () => {
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
           <p className="text-lg font-bold">How can we reach you?</p>
-          <TextField name="Email" />
+          <VerifyEmail />
           <TextField name="Phone Number" />
         </section>
 
