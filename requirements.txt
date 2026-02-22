@@ -3,3 +3,7 @@ google-genai
 dotenv
 resend
 vonage
+face_recognition
+Pillow
+numpy
+resemblyzer

@@ -12,12 +12,10 @@ import json
 sqliteurl = "users.db"
 # import numpy as np
 
+
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 client = genai.Client()
-
-vonageAuth = Auth(api_key="31a5f7e0", api_secret=os.getenv("VONAGE_API_SECRET"))
-vonage = Vonage(auth=vonageAuth)
 
 @app.route("/api/gemini", methods=["POST"])
 def gemini_prompt():
@@ -31,19 +29,27 @@ def gemini_prompt():
     return jsonify({"result": response.text}), 200
 
     
+# Creates a user with all of the data
 @app.route("/api/create_user", methods=["POST"])
 def create_user():
-    data = request.get_json()
-    if data is None:
-        return jsonify({"error": "Invalid JSON"}), 400
-    username = data.get("username")
-    password = data.get("password")
+    username = request.form.get("username")
+    password = request.form.get("password")
+    voice_file = request.files.get("voicedata")
+    image_file = request.files.get("image")
+    
+    if not username or not password:
+        return jsonify({"error": "Username and password are required"}), 400
+    
+    # Read the file content as bytes
+    voicedata = voice_file.read() if voice_file else None
+    imagedata = image_file.read() if image_file else None
+    
     try:
         conn = sqlite3.connect(sqliteurl)
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO users (username, password) VALUES (?, ?)",
-            (username, password)
+            "INSERT INTO users (username, password, voicedata, image) VALUES (?, ?, ?, ?)",
+            (username, password, voicedata, imagedata)
         )
         conn.commit()
         return jsonify({"message": "User created"}), 201
@@ -51,6 +57,34 @@ def create_user():
         return jsonify({"error": "Username already taken"}), 409
     finally:
         conn.close()
+
+
+
+@app.route("/api/get_voicedata/<username>", methods=["GET"])
+def get_voicedata(username):
+    conn = sqlite3.connect(sqliteurl)
+    cursor = conn.cursor()
+    cursor.execute("SELECT voicedata FROM users WHERE username = ?", (username,))
+    row = cursor.fetchone()
+    conn.close()
+    if row and row[0]:
+        return row[0], 200, {'Content-Type': 'audio/wav'}
+    else:
+        return jsonify({"error": "User not found or no voice data"}), 404
+
+
+
+@app.route("/api/get_imagedata/<username>", methods=["GET"])
+def get_imagedata(username):
+    conn = sqlite3.connect(sqliteurl)
+    cursor = conn.cursor()
+    cursor.execute("SELECT image FROM users WHERE username = ?", (username,))
+    row = cursor.fetchone()
+    conn.close()
+    if row and row[0]:
+        return row[0], 200, {'Content-Type': 'image/jpeg'}
+    else:
+        return jsonify({"error": "User not found or no image data"}), 404
 
 
 
@@ -155,33 +189,68 @@ def verify_code():
 
 
 
-# app = FastAPI()
-# encoder = VoiceEncoder()
+fastapi_app = FastAPI()
+encoder = VoiceEncoder()
 
-# def compare_voices(file1, file2, threshold=0.75):
-#     emb1 = encoder.embed_utterance(preprocess_wav(Path(file1)))
-#     emb2 = encoder.embed_utterance(preprocess_wav(Path(file2)))
+def compare_voices(file1, file2, threshold=0.75):
+    emb1 = encoder.embed_utterance(preprocess_wav(Path(file1)))
+    emb2 = encoder.embed_utterance(preprocess_wav(Path(file2)))
     
-#     similarity = float(np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2)))
+    similarity = float(np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2)))
     
-#     return {
-#         "similarity": round(similarity, 3),
-#         "match": similarity >= threshold
-#     }
+    return {
+        "similarity": round(similarity, 3),
+        "match": similarity >= threshold
+    }
 
-# @app.route("/api/compare_voices", methods=["POST"])
-# async def compare_voices_endpoint(
-#     enrolled: UploadFile = File(...),
-#     verify: UploadFile = File(...)
-# ):
-#     for upload, name in [(enrolled, "enrolled.wav"), (verify, "verify.wav")]:
-#         with open(name, "wb") as f:
-#             shutil.copyfileobj(upload.file, f)
+def save_blob_to_wav(blob_data: bytes, filename: str):
+    """Save BLOB data to a .wav file."""
+    with open(filename, "wb") as f:
+        f.write(blob_data)
 
-#     result = compare_voices("enrolled.wav", "verify.wav")
+def compare_faces(image1_bytes, image2_bytes):
+    try:
+        # Load images from bytes
+        img1 = Image.open(BytesIO(image1_bytes))
+        img2 = Image.open(BytesIO(image2_bytes))
+        
+        # Convert to RGB if needed
+        img1 = img1.convert('RGB')
+        img2 = img2.convert('RGB')
+        
+        # Get face encodings
+        enc1 = face_recognition.face_encodings(np.array(img1))
+        enc2 = face_recognition.face_encodings(np.array(img2))
+        
+        if not enc1:
+            return {"error": "No face found in first image"}
+        if not enc2:
+            return {"error": "No face found in second image"}
+        
+        # Compare faces
+        results = face_recognition.compare_faces([enc1[0]], enc2[0])
+        distance = face_recognition.face_distance([enc1[0]], enc2[0])[0]
+        
+        return {
+            "match": bool(results[0]),
+            "distance": float(distance)
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
-#     os.remove("enrolled.wav")
-#     os.remove("verify.wav")
+@fastapi_app.route("/api/compare_voices", methods=["POST"])
+async def compare_voices_endpoint(
+    enrolled: bytes = File(...),
+    verify: bytes = File(...)
+):
+    # Save BLOB data to temporary .wav files
+    save_blob_to_wav(enrolled, "enrolled.wav")
+    save_blob_to_wav(verify, "verify.wav")
+
+    result = compare_voices("enrolled.wav", "verify.wav")
+
+    os.remove("enrolled.wav")
+    os.remove("verify.wav")
 
     return result
 
@@ -241,5 +310,3 @@ def verify_text_code():
     conn.close()
     return jsonify({"error": "Invalid code"}), 401
 
-if __name__ == "__main__":
-    app.run(port=5328)
