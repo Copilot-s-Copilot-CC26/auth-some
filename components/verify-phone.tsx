@@ -3,7 +3,7 @@
 import {useState} from "react";
 import {Check} from "lucide-react";
 
-const VerifyPhone = () => {
+const VerifyPhone = ({ setter }: { setter: (arg0: boolean) => void }) => {
 
   const [phone, setPhone] = useState("");
   const [textSent, setTextSent] = useState(false);
@@ -14,7 +14,7 @@ const VerifyPhone = () => {
     if (!phoneText) return false
 
     const phoneTextRegex =
-      /^(\+1\s?)?(\(?\d{3}\)?[\s-]?)\d{3}[\s-]?\d{4}$/
+      /^(1\s?)?(\(?\d{3}\)?[\s-]?)\d{3}[\s-]?\d{4}$/
 
     return phoneTextRegex.test(phoneText.trim())
   }
@@ -22,7 +22,7 @@ const VerifyPhone = () => {
   const validateCodeText = (code: number): boolean => {
     if(!code) return false
 
-    const codeRegex = /^\d{6}$/
+    const codeRegex = /^\d{4}$/
 
     return codeRegex.test(String(code))
   }
@@ -43,7 +43,7 @@ const VerifyPhone = () => {
   }
 
   const validateCode = () => {
-    fetch("/api/verify_code",
+    fetch("/api/verify_text_code",
       {
         method: 'POST',
         headers: {
@@ -53,6 +53,7 @@ const VerifyPhone = () => {
       }).then((res) => {
       if (res.status == 200) {
         setVerified(true);
+        setter(true);
       }
     })
   }

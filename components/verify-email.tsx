@@ -3,7 +3,7 @@
 import {useState} from "react";
 import {Check} from "lucide-react";
 
-const VerifyEmail = () => {
+const VerifyEmail = ({ setter }: { setter: (arg0: boolean) => void }) => {
 
   const [email, setEmail] = useState("");
   const [emailSent, setEmailSent] = useState(false);
@@ -28,7 +28,7 @@ const VerifyEmail = () => {
   }
 
   const sendEmail = () => {
-    fetch("/api/send_verification",
+    fetch("/api/send_email_verification",
       {
         method: 'POST',
         headers: {
@@ -43,7 +43,7 @@ const VerifyEmail = () => {
   }
 
   const validateCode = () => {
-    fetch("/api/verify_code",
+    fetch("/api/verify_email_code",
       {
         method: 'POST',
         headers: {
@@ -53,6 +53,7 @@ const VerifyEmail = () => {
       }).then((res) => {
         if (res.status == 200) {
           setVerified(true);
+          setter(true);
         }
     })
   }

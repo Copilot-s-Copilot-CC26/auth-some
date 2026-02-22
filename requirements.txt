@@ -7,3 +7,8 @@ vonage
 #Pillow
 #numpy
 #resemblyzer
+python-dotenv
+vonage-verify
+numpy
+resemblyzer
+face-recognition

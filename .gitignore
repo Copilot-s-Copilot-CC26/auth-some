@@ -39,3 +39,4 @@ __pycache__
 .env
 
 users.db
+database.db

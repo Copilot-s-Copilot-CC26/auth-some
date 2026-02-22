@@ -2,11 +2,12 @@
 
 import TextField from "@/components/textField";
 import HCaptcha from "@hcaptcha/react-hcaptcha";
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useState} from "react";
 import dynamic from "next/dynamic"
 import WebcamCapture from "@/components/webcam-capture";
 import VerifyEmail from "@/components/verify-email";
 import VerifyPhone from "@/components/verify-phone";
+import FiveSecondRecorder from "@/components/voice-record";
 
 const CoordinatePicker = dynamic(
   () => import("@/components/coordinate-picker"),
@@ -15,7 +16,13 @@ const CoordinatePicker = dynamic(
 
 const Page = () => {
 
-  const [token, setToken] = useState<string|null>(null);
+  const [c1, setC1] = useState<string|null>(null)
+  const [c2, setC2] = useState<string|null>(null)
+
+  const [emailVerified, setEmailVerified] = useState(false)
+  const [phoneVerified, setPhoneVerified] = useState(false)
+  const [coords, setCoords] = useState<[number, number] | null>(null)
+  const [audio, setAudio] = useState<string|null>(null)
 
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -34,13 +41,6 @@ const Page = () => {
       }).then((res) => res.json()).then((json) => console.log(json))
   }
 
-  useEffect(() => {
-
-    if (token)
-      console.log(`hCaptcha Token: ${token}`);
-
-  }, [token]);
-
   return (
     <div>
       <form onSubmit={submit} className="flex flex-col items-center justify-center gap-4 p-4">
@@ -54,12 +54,12 @@ const Page = () => {
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
           <p className="text-lg font-bold">What is your email?</p>
-          <VerifyEmail />
+          <VerifyEmail setter={setEmailVerified} />
         </section>
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
           <p className="text-lg font-bold">What is your phone number?</p>
-          <VerifyPhone />
+          <VerifyPhone setter={setPhoneVerified} />
         </section>
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
@@ -84,7 +84,7 @@ const Page = () => {
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
           <p className="text-lg font-bold">Where do you sleep?</p>
-          <CoordinatePicker />
+          <CoordinatePicker setter={setCoords} />
         </section>
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
@@ -92,25 +92,46 @@ const Page = () => {
           <WebcamCapture />
         </section>
 
+        {/*<section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">*/}
+        {/*  <p className="text-lg font-bold">Does your drivers license also look like that?</p>*/}
+        {/*  <WebcamCapture />*/}
+        {/*</section>*/}
+
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
-          <p className="text-lg font-bold">Does your drivers license also look like that?</p>
-          <WebcamCapture />
+          <p className="text-lg font-bold">What do you sound like?</p>
+          <FiveSecondRecorder setter={setAudio} />
+        </section>
+
+        <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
+          <p className="text-lg font-bold">Do you have any money?</p>
+          <TextField name="Credit Card Number" />
+          <TextField name="Expiration Month" />
+          <TextField name="Expiration Year" />
+          <TextField name="CVC" />
+        </section>
+
+        <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
+          <p className="text-lg font-bold">A few more nuts and bolts</p>
+          <TextField name="Social Security Number" />
+          <TextField name="License Plate" />
+          <TextField name="License Plate State" />
+          <TextField name="Date of Birth" />
+          <TextField name="Mother's Maiden Name" />
         </section>
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
           <p className="text-lg font-bold">Are you a robot?</p>
           <HCaptcha
             sitekey="370c332a-75f8-48c6-9562-d97e0a42f870"
-            onVerify={(token) => setToken(token)}
+            onVerify={(token) => setC1(token)}
           />
-
         </section>
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
           <p className="text-lg font-bold">Are you sure?</p>
           <HCaptcha
             sitekey="370c332a-75f8-48c6-9562-d97e0a42f870"
-            onVerify={(token) => setToken(token)}
+            onVerify={(token) => setC2(token)}
           />
         </section>
 

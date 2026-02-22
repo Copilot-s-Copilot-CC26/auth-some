@@ -29,13 +29,13 @@ function ClickHandler({
   return null
 }
 
-export default function CoordinatePicker() {
+export default function CoordinatePicker({ setter }: { setter: (arg0: [number, number]) => void }) {
   const [position, setPosition] = useState<[number, number] | null>(null)
 
   return (
     <div className="space-y-4">
       <MapContainer
-        center={[47.6572, -117.4235]}
+        center={[46.72791865708787, -117.16571029144764]}
         zoom={13}
         style={{ height: "500px", width: "100%" }}
       >
@@ -47,6 +47,7 @@ export default function CoordinatePicker() {
         <ClickHandler
           onSelect={(lat, lng) => {
             setPosition([lat, lng])
+            setter([lat, lng])
           }}
         />
 
