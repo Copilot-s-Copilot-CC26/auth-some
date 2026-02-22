@@ -5,41 +5,17 @@ from dotenv import load_dotenv
 import os
 import resend
 import random
-from twilio.rest import Client
+from vonage import Auth, Vonage, HttpClientOptions
+from vonage_verify import VerifyRequest, SmsChannel
+from vonage_sms import SmsMessage, SmsResponse
+import json
 sqliteurl = "users.db"
-import numpy as np
-import resemblyzer
-from fastapi import FastAPI, File
-from resemblyzer import VoiceEncoder, preprocess_wav
-from pathlib import Path
-from PIL import Image
-import face_recognition
-from io import BytesIO
+# import numpy as np
+
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 client = genai.Client()
-
-def init_db():
-    conn = sqlite3.connect(sqliteurl)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            voicedata BLOB,
-            image BLOB
-        )
-    """)
-    try:
-        cursor.execute("ALTER TABLE users ADD COLUMN image BLOB")
-    except sqlite3.OperationalError:
-        pass  # column already exists
-    conn.commit()
-    conn.close()
-
-init_db()
 
 @app.route("/api/gemini", methods=["POST"])
 def gemini_prompt():
@@ -278,23 +254,38 @@ async def compare_voices_endpoint(
 
     return result
 
-
-
-if __name__ == "__main__":
-    app.run(port=5328)
-
-twilio_client = Client(os.getenv("TWILIO_SID"), os.getenv("TWILIO_TOKEN"))
-
 @app.route("/api/send_text_verification", methods=["POST"])
 def send_text_verification():
     data = request.get_json()
     phone = data.get("phone")
-    
-    verification = twilio_client.verify.v2.services(os.getenv("TWILIO_VERIFY_SID")).verifications.create(
-        to=phone,
-        channel="sms"
+    code = str(random.randint(100000, 999999))
+
+    sms_channel = SmsChannel(to=str(phone), from_="19896137088")
+    params = {
+        'brand': 'Vonage',
+        'workflow': [sms_channel],
+    }
+    verify_request = VerifyRequest(**params)
+
+    response = vonage.verify.start_verification(verify_request)
+
+    responseDict = json.loads(response.model_dump_json())
+
+    conn = sqlite3.connect(sqliteurl)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS text_verification_codes (
+            phone TEXT PRIMARY KEY,
+            request_id TEXT NOT NULL
+        )
+    """)
+    cursor.execute(
+        "INSERT OR REPLACE INTO text_verification_codes (phone, request_id) VALUES (?, ?)",
+        (phone, responseDict["request_id"])
     )
-    
+    conn.commit()
+    conn.close()
+
     return jsonify({"message": "Code sent"}), 200
 
 @app.route("/api/verify_text_code", methods=["POST"])
@@ -302,29 +293,20 @@ def verify_text_code():
     data = request.get_json()
     phone = data.get("phone")
     code = data.get("code")
-    
-    result = twilio_client.verify.v2.services(os.getenv("TWILIO_VERIFY_SID")).verification_checks.create(
-        to=phone,
-        code=code
+    conn = sqlite3.connect(sqliteurl)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT request_id FROM text_verification_codes WHERE phone = ?", (phone,)
     )
-    
-    if result.status == "approved":
-        return jsonify({"message": "Verified!"}), 200
+    row = cursor.fetchone()
+
+    if row:
+        response = vonage.verify.check_code(request_id=row[0], code=code)
+        if json.loads(response.model_dump_json())["status"] == 'completed':
+            cursor.execute("DELETE FROM text_verification_codes WHERE phone = ?", (phone,))
+            conn.commit()
+            conn.close()
+            return jsonify({"message": "Verified!"}), 200
+    conn.close()
     return jsonify({"error": "Invalid code"}), 401
-
-@app.route("/api/compare_faces", methods=["POST"])
-def compare_faces_endpoint():
-    enrolled_file = request.files.get("enrolled")
-    verify_file = request.files.get("verify")
-    
-    if not enrolled_file or not verify_file:
-        return jsonify({"error": "Both enrolled and verify images are required"}), 400
-    
-    enrolled_data = enrolled_file.read()
-    verify_data = verify_file.read()
-    
-    result = compare_faces(enrolled_data, verify_data)
-    
-    return jsonify(result), 200
-
 

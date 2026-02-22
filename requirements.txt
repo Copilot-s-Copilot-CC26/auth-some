@@ -2,7 +2,7 @@ Flask==3.0.3
 google-genai
 dotenv
 resend
-twilio
+vonage
 face_recognition
 Pillow
 numpy
