@@ -17,6 +17,9 @@ app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 client = genai.Client()
 
+vonageAuth = Auth(api_key="31a5f7e0", api_secret=os.getenv("VONAGE_API_SECRET"))
+vonage = Vonage(auth=vonageAuth)
+
 @app.route("/api/gemini", methods=["POST"])
 def gemini_prompt():
     data = request.get_json()
@@ -189,70 +192,70 @@ def verify_code():
 
 
 
-fastapi_app = FastAPI()
-encoder = VoiceEncoder()
+# fastapi_app = FastAPI()
+# encoder = VoiceEncoder()
 
-def compare_voices(file1, file2, threshold=0.75):
-    emb1 = encoder.embed_utterance(preprocess_wav(Path(file1)))
-    emb2 = encoder.embed_utterance(preprocess_wav(Path(file2)))
+# def compare_voices(file1, file2, threshold=0.75):
+#     emb1 = encoder.embed_utterance(preprocess_wav(Path(file1)))
+#     emb2 = encoder.embed_utterance(preprocess_wav(Path(file2)))
     
-    similarity = float(np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2)))
+#     similarity = float(np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2)))
     
-    return {
-        "similarity": round(similarity, 3),
-        "match": similarity >= threshold
-    }
+#     return {
+#         "similarity": round(similarity, 3),
+#         "match": similarity >= threshold
+#     }
 
-def save_blob_to_wav(blob_data: bytes, filename: str):
-    """Save BLOB data to a .wav file."""
-    with open(filename, "wb") as f:
-        f.write(blob_data)
+# def save_blob_to_wav(blob_data: bytes, filename: str):
+#     """Save BLOB data to a .wav file."""
+#     with open(filename, "wb") as f:
+#         f.write(blob_data)
 
-def compare_faces(image1_bytes, image2_bytes):
-    try:
-        # Load images from bytes
-        img1 = Image.open(BytesIO(image1_bytes))
-        img2 = Image.open(BytesIO(image2_bytes))
+# def compare_faces(image1_bytes, image2_bytes):
+#     try:
+#         # Load images from bytes
+#         img1 = Image.open(BytesIO(image1_bytes))
+#         img2 = Image.open(BytesIO(image2_bytes))
         
-        # Convert to RGB if needed
-        img1 = img1.convert('RGB')
-        img2 = img2.convert('RGB')
+#         # Convert to RGB if needed
+#         img1 = img1.convert('RGB')
+#         img2 = img2.convert('RGB')
         
-        # Get face encodings
-        enc1 = face_recognition.face_encodings(np.array(img1))
-        enc2 = face_recognition.face_encodings(np.array(img2))
+#         # Get face encodings
+#         enc1 = face_recognition.face_encodings(np.array(img1))
+#         enc2 = face_recognition.face_encodings(np.array(img2))
         
-        if not enc1:
-            return {"error": "No face found in first image"}
-        if not enc2:
-            return {"error": "No face found in second image"}
+#         if not enc1:
+#             return {"error": "No face found in first image"}
+#         if not enc2:
+#             return {"error": "No face found in second image"}
         
-        # Compare faces
-        results = face_recognition.compare_faces([enc1[0]], enc2[0])
-        distance = face_recognition.face_distance([enc1[0]], enc2[0])[0]
+#         # Compare faces
+#         results = face_recognition.compare_faces([enc1[0]], enc2[0])
+#         distance = face_recognition.face_distance([enc1[0]], enc2[0])[0]
         
-        return {
-            "match": bool(results[0]),
-            "distance": float(distance)
-        }
-    except Exception as e:
-        return {"error": str(e)}
+#         return {
+#             "match": bool(results[0]),
+#             "distance": float(distance)
+#         }
+#     except Exception as e:
+#         return {"error": str(e)}
 
-@fastapi_app.route("/api/compare_voices", methods=["POST"])
-async def compare_voices_endpoint(
-    enrolled: bytes = File(...),
-    verify: bytes = File(...)
-):
-    # Save BLOB data to temporary .wav files
-    save_blob_to_wav(enrolled, "enrolled.wav")
-    save_blob_to_wav(verify, "verify.wav")
+# @fastapi_app.route("/api/compare_voices", methods=["POST"])
+# async def compare_voices_endpoint(
+#     enrolled: bytes = File(...),
+#     verify: bytes = File(...)
+# ):
+#     # Save BLOB data to temporary .wav files
+#     save_blob_to_wav(enrolled, "enrolled.wav")
+#     save_blob_to_wav(verify, "verify.wav")
 
-    result = compare_voices("enrolled.wav", "verify.wav")
+#     result = compare_voices("enrolled.wav", "verify.wav")
 
-    os.remove("enrolled.wav")
-    os.remove("verify.wav")
+#     os.remove("enrolled.wav")
+#     os.remove("verify.wav")
 
-    return result
+#     return result
 
 @app.route("/api/send_text_verification", methods=["POST"])
 def send_text_verification():
