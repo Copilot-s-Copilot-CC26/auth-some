@@ -20,13 +20,12 @@
     "eslint": "8.40.0",
     "eslint-config-next": "13.4.2",
     "leaflet": "^1.9.4",
+    "lucide-react": "^0.575.0",
     "next": "^16.0.10",
     "postcss": "8.4.23",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
-    "react-google-map-picker": "^1.2.3",
     "react-leaflet": "^5.0.0",
-    "react-location-picker": "^1.5.0",
     "tailwindcss": "3.3.2",
     "typescript": "^5"
   }

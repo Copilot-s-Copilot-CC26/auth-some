@@ -120,7 +120,7 @@ def send_verification():
     conn.close()
 
     resend.Emails.send({
-        "from": "onboarding@resend.dev",
+        "from": "onboarding@auth-some.andysorge.xyz",
         "to": email,
         "subject": "Your Verification Code",
         "html": f"<p>Your verification code is: <strong>{code}</strong></p>"
@@ -132,16 +132,14 @@ def send_verification():
 def verify_code():
     data = request.get_json()
     email = data.get("email")
-    code = data.get("code")
+    code = int(data.get("code"))
     conn = sqlite3.connect(sqliteurl)
     cursor = conn.cursor()
     cursor.execute(
         "SELECT code FROM verification_codes WHERE email = ?", (email,)
     )
     row = cursor.fetchone()
-    print("DB row:", row)        # add this
-    print("Code entered:", code) # add this
-    if row and row[0] == code:
+    if row and int( row[0]) == code:
         cursor.execute("DELETE FROM verification_codes WHERE email = ?", (email,))
         conn.commit()
         conn.close()

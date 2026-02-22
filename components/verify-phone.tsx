@@ -3,20 +3,20 @@
 import {useState} from "react";
 import {Check} from "lucide-react";
 
-const VerifyEmail = () => {
+const VerifyPhone = () => {
 
-  const [email, setEmail] = useState("");
-  const [emailSent, setEmailSent] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [textSent, setTextSent] = useState(false);
   const [code, setCode] = useState(0);
   const [verified, setVerified] = useState(false)
 
-  const validateEmailText = (email: string): boolean => {
-    if (!email) return false
+  const validatePhoneText = (phoneText: string): boolean => {
+    if (!phoneText) return false
 
-    const emailRegex =
+    const phoneTextRegex =
       /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-    return emailRegex.test(email.trim())
+    return phoneTextRegex.test(phoneText.trim())
   }
 
   const validateCodeText = (code: number): boolean => {
@@ -27,18 +27,18 @@ const VerifyEmail = () => {
     return codeRegex.test(String(code))
   }
 
-  const sendEmail = () => {
-    fetch("/api/send_verification",
+  const sendText = () => {
+    fetch("/api/send_text_verification",
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({"email": email})
+        body: JSON.stringify({"phone": phone})
       }).then((res) => {
-        if (res.status == 200) {
-          setEmailSent(true);
-        }
+      if (res.status == 200) {
+        setTextSent(true);
+      }
     })
   }
 
@@ -49,54 +49,54 @@ const VerifyEmail = () => {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({"email": email, "code": code})
+        body: JSON.stringify({"phone": phone, "code": code})
       }).then((res) => {
-        if (res.status == 200) {
-          setVerified(true);
-        }
+      if (res.status == 200) {
+        setVerified(true);
+      }
     })
   }
 
   return (
     <>
       <label
-        htmlFor="email"
+        htmlFor="phone"
       >
-        Email
+        Phone Number
       </label>
-      <div className={`flex flex-row ${validateEmailText(email) ? 'gap-4' : 'gap-0'}`}>
+      <div className={`flex flex-row ${validatePhoneText(phone) ? 'gap-4' : 'gap-0'}`}>
         <input
           type="text"
-          id="email"
-          name="email"
-          disabled={emailSent}
+          id="phone"
+          name="phone"
+          disabled={textSent}
           className="flex-1"
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => setPhone(e.target.value)}
         />
 
         <button
           type="button"
-          disabled={emailSent}
+          disabled={textSent}
           className={`
             overflow-hidden whitespace-nowrap
             transition-all duration-300 ease-in-out
-            ${validateEmailText(email)
-                  ? "opacity-100 w-24 min-w-min"
-                  : "opacity-0 w-0 !p-0"}
+            ${validatePhoneText(phone)
+            ? "opacity-100 w-24 min-w-min"
+            : "opacity-0 w-0 !p-0"}
           `}
-          onClick={sendEmail}
+          onClick={sendText}
         >
-          Send Verification Email
+          Send Verification Text
         </button>
       </div>
-      {emailSent && !verified &&
+      {textSent && !verified &&
         <>
-          <label htmlFor="emailCode">Verification Code</label>
+          <label htmlFor="textCode">Verification Code</label>
           <div className={`flex flex-row ${validateCodeText(code) ? 'gap-4' : 'gap-0'}`}>
             <input
               type="text"
-              id="emailCode"
-              name="emailCode"
+              id="textCode"
+              name="textCode"
               className="flex-1"
               onChange={(e) => setCode(parseInt(e.target.value))}
             />
@@ -117,9 +117,9 @@ const VerifyEmail = () => {
           </div>
         </>
       }
-      {verified && <p className="text-green-500 flex items-center"><Check className="inline" />Email Verified</p>}
+      {verified && <p className="text-green-500 flex items-center"><Check className="inline" />Phone Number Verified</p>}
     </>
   )
 }
 
-export default VerifyEmail;
+export default VerifyPhone;

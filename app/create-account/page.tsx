@@ -6,6 +6,7 @@ import {useEffect, useRef, useState} from "react";
 import dynamic from "next/dynamic"
 import WebcamCapture from "@/components/webcam-capture";
 import VerifyEmail from "@/components/verify-email";
+import VerifyPhone from "@/components/verify-phone";
 
 const CoordinatePicker = dynamic(
   () => import("@/components/coordinate-picker"),
@@ -52,9 +53,13 @@ const Page = () => {
         </section>
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
-          <p className="text-lg font-bold">How can we reach you?</p>
+          <p className="text-lg font-bold">What is your email?</p>
           <VerifyEmail />
-          <TextField name="Phone Number" />
+        </section>
+
+        <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
+          <p className="text-lg font-bold">What is your phone number?</p>
+          <VerifyPhone />
         </section>
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
