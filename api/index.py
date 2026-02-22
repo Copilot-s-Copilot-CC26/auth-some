@@ -6,6 +6,8 @@ import os
 import resend
 import random
 sqliteurl = "users.db"
+# import numpy as np
+
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
@@ -94,8 +96,6 @@ def validate_user():
     conn.close()
     return jsonify({"error": "Incorrect login information!"}), 400
 
-if __name__ == "__main__":
-    app.run(port=5328)
     
 resend.api_key = os.getenv("RESEND_API_KEY")
 @app.route("/api/send_verification", methods=["POST"])
@@ -139,7 +139,49 @@ def verify_code():
         "SELECT code FROM verification_codes WHERE email = ?", (email,)
     )
     row = cursor.fetchone()
-    conn.close()
+    print("DB row:", row)        # add this
+    print("Code entered:", code) # add this
     if row and row[0] == code:
+        cursor.execute("DELETE FROM verification_codes WHERE email = ?", (email,))
+        conn.commit()
+        conn.close()
         return jsonify({"message": "Verified!"}), 200
+    conn.close()
     return jsonify({"error": "Invalid code"}), 401
+
+
+
+# app = FastAPI()
+# encoder = VoiceEncoder()
+
+# def compare_voices(file1, file2, threshold=0.75):
+#     emb1 = encoder.embed_utterance(preprocess_wav(Path(file1)))
+#     emb2 = encoder.embed_utterance(preprocess_wav(Path(file2)))
+    
+#     similarity = float(np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2)))
+    
+#     return {
+#         "similarity": round(similarity, 3),
+#         "match": similarity >= threshold
+#     }
+
+# @app.route("/api/compare_voices", methods=["POST"])
+# async def compare_voices_endpoint(
+#     enrolled: UploadFile = File(...),
+#     verify: UploadFile = File(...)
+# ):
+#     for upload, name in [(enrolled, "enrolled.wav"), (verify, "verify.wav")]:
+#         with open(name, "wb") as f:
+#             shutil.copyfileobj(upload.file, f)
+
+#     result = compare_voices("enrolled.wav", "verify.wav")
+
+#     os.remove("enrolled.wav")
+#     os.remove("verify.wav")
+
+    return result
+
+
+
+if __name__ == "__main__":
+    app.run(port=5328)
