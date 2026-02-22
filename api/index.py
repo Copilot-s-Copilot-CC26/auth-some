@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 import os
 import resend
 import random
+from twilio.rest import Client
 sqliteurl = "users.db"
 # import numpy as np
 
@@ -185,3 +186,33 @@ def verify_code():
 
 if __name__ == "__main__":
     app.run(port=5328)
+
+twilio_client = Client(os.getenv("TWILIO_SID"), os.getenv("TWILIO_TOKEN"))
+
+@app.route("/api/send_text_verification", methods=["POST"])
+def send_text_verification():
+    data = request.get_json()
+    phone = data.get("phone")
+    
+    verification = twilio_client.verify.v2.services(os.getenv("TWILIO_VERIFY_SID")).verifications.create(
+        to=phone,
+        channel="sms"
+    )
+    
+    return jsonify({"message": "Code sent"}), 200
+
+@app.route("/api/verify_text_code", methods=["POST"])
+def verify_text_code():
+    data = request.get_json()
+    phone = data.get("phone")
+    code = data.get("code")
+    
+    result = twilio_client.verify.v2.services(os.getenv("TWILIO_VERIFY_SID")).verification_checks.create(
+        to=phone,
+        code=code
+    )
+    
+    if result.status == "approved":
+        return jsonify({"message": "Verified!"}), 200
+    return jsonify({"error": "Invalid code"}), 401
+
