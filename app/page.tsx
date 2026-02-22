@@ -2,19 +2,17 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null)
   const [userData, setUserData] = useState(null)
-  const router = useRouter()
 
   useEffect(() => {
     async function checkSession() {
       try {
         const res = await fetch("/api/validate_session", {
           method: "GET",
-          credentials: "include", // 🔥 IMPORTANT
+          credentials: "include",
         })
 
         if (!res.ok) {
@@ -36,7 +34,6 @@ export default function Home() {
     checkSession()
   }, [])
 
-  // Optional loading state
   if (isLoggedIn === null) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
