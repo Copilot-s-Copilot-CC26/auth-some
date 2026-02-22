@@ -7,12 +7,31 @@ import resend
 import random
 from twilio.rest import Client
 sqliteurl = "users.db"
-# import numpy as np
-
+import numpy as np
+import resemblyzer
+from fastapi import FastAPI, File
+from resemblyzer import VoiceEncoder, preprocess_wav
+from pathlib import Path
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 client = genai.Client()
+
+def init_db():
+    conn = sqlite3.connect(sqliteurl)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            voicedata BLOB
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
 
 @app.route("/api/gemini", methods=["POST"])
 def gemini_prompt():
@@ -26,19 +45,25 @@ def gemini_prompt():
     return jsonify({"result": response.text}), 200
 
     
+# Creates a user with all of the data
 @app.route("/api/create_user", methods=["POST"])
 def create_user():
-    data = request.get_json()
-    if data is None:
-        return jsonify({"error": "Invalid JSON"}), 400
-    username = data.get("username")
-    password = data.get("password")
+    username = request.form.get("username")
+    password = request.form.get("password")
+    voice_file = request.files.get("voicedata")
+    
+    if not username or not password or not voice_file:
+        return jsonify({"error": "Username, password, and voice file are required"}), 400
+    
+    # Read the file content as bytes
+    voicedata = voice_file.read()
+    
     try:
         conn = sqlite3.connect(sqliteurl)
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO users (username, password) VALUES (?, ?)",
-            (username, password)
+            "INSERT INTO users (username, password, voicedata) VALUES (?, ?, ?)",
+            (username, password, voicedata)
         )
         conn.commit()
         return jsonify({"message": "User created"}), 201
@@ -46,6 +71,20 @@ def create_user():
         return jsonify({"error": "Username already taken"}), 409
     finally:
         conn.close()
+
+
+
+@app.route("/api/get_voicedata/<username>", methods=["GET"])
+def get_voicedata(username):
+    conn = sqlite3.connect(sqliteurl)
+    cursor = conn.cursor()
+    cursor.execute("SELECT voicedata FROM users WHERE username = ?", (username,))
+    row = cursor.fetchone()
+    conn.close()
+    if row and row[0]:
+        return row[0], 200, {'Content-Type': 'audio/wav'}
+    else:
+        return jsonify({"error": "User not found or no voice data"}), 404
 
 
 
@@ -150,33 +189,38 @@ def verify_code():
 
 
 
-# app = FastAPI()
-# encoder = VoiceEncoder()
+fastapi_app = FastAPI()
+encoder = VoiceEncoder()
 
-# def compare_voices(file1, file2, threshold=0.75):
-#     emb1 = encoder.embed_utterance(preprocess_wav(Path(file1)))
-#     emb2 = encoder.embed_utterance(preprocess_wav(Path(file2)))
+def compare_voices(file1, file2, threshold=0.75):
+    emb1 = encoder.embed_utterance(preprocess_wav(Path(file1)))
+    emb2 = encoder.embed_utterance(preprocess_wav(Path(file2)))
     
-#     similarity = float(np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2)))
+    similarity = float(np.dot(emb1, emb2) / (np.linalg.norm(emb1) * np.linalg.norm(emb2)))
     
-#     return {
-#         "similarity": round(similarity, 3),
-#         "match": similarity >= threshold
-#     }
+    return {
+        "similarity": round(similarity, 3),
+        "match": similarity >= threshold
+    }
 
-# @app.route("/api/compare_voices", methods=["POST"])
-# async def compare_voices_endpoint(
-#     enrolled: UploadFile = File(...),
-#     verify: UploadFile = File(...)
-# ):
-#     for upload, name in [(enrolled, "enrolled.wav"), (verify, "verify.wav")]:
-#         with open(name, "wb") as f:
-#             shutil.copyfileobj(upload.file, f)
+def save_blob_to_wav(blob_data: bytes, filename: str):
+    """Save BLOB data to a .wav file."""
+    with open(filename, "wb") as f:
+        f.write(blob_data)
 
-#     result = compare_voices("enrolled.wav", "verify.wav")
+@fastapi_app.route("/api/compare_voices", methods=["POST"])
+async def compare_voices_endpoint(
+    enrolled: bytes = File(...),
+    verify: bytes = File(...)
+):
+    # Save BLOB data to temporary .wav files
+    save_blob_to_wav(enrolled, "enrolled.wav")
+    save_blob_to_wav(verify, "verify.wav")
 
-#     os.remove("enrolled.wav")
-#     os.remove("verify.wav")
+    result = compare_voices("enrolled.wav", "verify.wav")
+
+    os.remove("enrolled.wav")
+    os.remove("verify.wav")
 
     return result
 
