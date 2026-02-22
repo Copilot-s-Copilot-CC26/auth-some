@@ -7,7 +7,9 @@ import random
 from vonage import Auth, Vonage
 from vonage_verify import VerifyRequest, SmsChannel
 import json
-from utils import setup_database
+
+from api.utils import bytes_to_image
+from utils import setup_database, compare_faces, compare_voices
 
 # BEGIN SETUP
 load_dotenv()
@@ -34,8 +36,6 @@ app = Flask(__name__)
 # creates new user and inserts into users and user_data
 @app.route("/api/create_user", methods=["POST"])
 def create_user():
-    data = request.get_json()
-
     conn = sqlite3.connect(DB_URL)
     conn.execute("PRAGMA foreign_keys = ON")
     cursor = conn.cursor()
@@ -47,10 +47,16 @@ def create_user():
             INSERT INTO users (username, password)
             VALUES (?, ?)
             """,
-            (data.get("username"), data.get("password"))
+            (request.form.get("username"), request.form.get("password"))
         )
 
         user_id = cursor.lastrowid
+
+        voice = request.files.get("voice")
+        image = request.files.get("image")
+
+        image_bytes = image.read() if image else None
+        voice_bytes = voice.read() if voice else None
 
         # Insert into user_data table
         cursor.execute(
@@ -67,6 +73,7 @@ def create_user():
                 city,
                 state,
                 zip_code,
+                sleep_coords,
                 credit_card_number,
                 expiration_month,
                 expiration_year,
@@ -75,31 +82,36 @@ def create_user():
                 license_plate,
                 license_plate_state,
                 date_of_birth,
-                mothers_maiden_name
+                mothers_maiden_name,
+                voice,
+                face
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
-                data.get("first-name"),
-                data.get("middle-name"),
-                data.get("last-name"),
-                data.get("suffix"),
-                data.get("phone"),
-                data.get("address-line-1"),
-                data.get("address-line-2"),
-                data.get("city"),
-                data.get("state"),
-                data.get("zip-code"),
-                data.get("credit-card-number"),
-                data.get("expiration-month"),
-                data.get("expiration-year"),
-                data.get("cvc"),
-                data.get("social-security-number"),
-                data.get("license-plate"),
-                data.get("license-plate-state"),
-                data.get("date-of-birth"),
-                data.get("mother's-maiden-name"),
+                request.form.get("first-name"),
+                request.form.get("middle-name"),
+                request.form.get("last-name"),
+                request.form.get("suffix"),
+                request.form.get("phone"),
+                request.form.get("address-line-1"),
+                request.form.get("address-line-2"),
+                request.form.get("city"),
+                request.form.get("state"),
+                request.form.get("zip-code"),
+                request.form.get("sleep-coords"),
+                request.form.get("credit-card-number"),
+                request.form.get("expiration-month"),
+                request.form.get("expiration-year"),
+                request.form.get("cvc"),
+                request.form.get("social-security-number"),
+                request.form.get("license-plate"),
+                request.form.get("license-plate-state"),
+                request.form.get("date-of-birth"),
+                request.form.get("mother's-maiden-name"),
+                voice_bytes,
+                image_bytes
             )
         )
 
@@ -107,6 +119,7 @@ def create_user():
         return jsonify({"message": "User created", "user_id": user_id}), 201
 
     except sqlite3.IntegrityError as e:
+        app.logger.error(e)
         conn.rollback()
         return jsonify({"error": "Username already exists"}), 400
 
@@ -116,12 +129,11 @@ def create_user():
 # checks if a username and password are correct
 @app.route("/api/validate_user", methods=["POST"])
 def validate_user():
-    data = request.get_json()
-    if data is None:
-        return jsonify({"error": "Invalid JSON"}), 400
+    username = request.form.get("username")
+    password = request.form.get("password")
 
-    username = data.get("username")
-    password = data.get("password")
+    new_face = request.files.get("image")
+    new_voice = request.files.get("voice")
 
     if not username or not password:
         return jsonify({"error": "Username and password are required"}), 400
@@ -145,18 +157,29 @@ def validate_user():
     conn = sqlite3.connect(DB_URL)
     crsr = conn.cursor()
 
-    crsr.execute(
-        "SELECT id FROM users WHERE username = ? AND password = ?",
-        (username, password),
-    )
+    crsr.execute("""
+                 SELECT u.id, ud.face, ud.voice
+                 FROM users u
+                          JOIN user_data ud ON u.id = ud.user_id
+                 WHERE u.username = ?
+                   AND u.password = ?
+                 """, (username, password))
+
     row = crsr.fetchone()
-
-    if row:
-        conn.close()
-        return jsonify({"message": "Login successful"}), 200
-
     conn.close()
-    return jsonify({"error": "Incorrect login information!"}), 400
+
+    if not row:
+        return jsonify({"error": "Incorrect login information!"}), 400
+
+    user_id, face_blob, voice_blob = row
+
+    face_result = compare_faces(bytes_to_image(face_blob), bytes_to_image(new_face.read()))
+    if not bool(face_result['match']): return jsonify({"error": "Face Mismatch"}), 400
+
+    voice_result = compare_voices(voice_blob, new_voice.read())
+    if not bool(voice_result['match']): return jsonify({"error": "Voice Mismatch"}), 400
+
+    return jsonify({"message": "Login successful"}), 200
 
 #---------------------------END USER MANAGEMENT---------------------------
 

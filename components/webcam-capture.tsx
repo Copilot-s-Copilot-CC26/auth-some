@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 
-export default function WebcamCapture() {
+export default function WebcamCapture({ setter }: { setter: (arg0: Blob) => void }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
@@ -53,6 +53,11 @@ export default function WebcamCapture() {
 
     const dataUrl = canvas.toDataURL("image/png")
     setImage(dataUrl)
+
+    canvas.toBlob(async (blob) => {
+    if (!blob) return
+      setter(blob)
+    }, "image/png")
   }
 
   return (

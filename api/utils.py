@@ -6,6 +6,8 @@ import tempfile
 import os
 import subprocess
 from pathlib import Path
+from PIL import Image
+import io
 
 # init tables
 def setup_database(url):
@@ -47,6 +49,7 @@ def setup_database(url):
             city TEXT,
             state TEXT,
             zip_code TEXT,
+            sleep_coords TEXT,
         
             credit_card_number TEXT,
             expiration_month TEXT,
@@ -58,6 +61,9 @@ def setup_database(url):
             license_plate_state TEXT,
             date_of_birth TEXT,
             mothers_maiden_name TEXT,
+            
+            voice BLOB,
+            face BLOB,
         
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
@@ -110,17 +116,29 @@ def compare_faces(img1, img2):
         "confidence_distance": float(distance)
     }
 
+def bytes_to_image(image_bytes):
+    image = Image.open(io.BytesIO(image_bytes))
+    return image
+
 # voice recognition
-def compare_voices(file1, file2, threshold=0.75):
+
+def bytes_to_wav_file(audio_bytes):
+    temp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    temp.write(audio_bytes)
+    temp.close()
+    return temp.name
+
+
+def compare_voices(file1_bytes, file2_bytes, threshold=0.75):
     encoder = VoiceEncoder()
 
-    # Convert webm → wav
-    wav1 = convert_webm_to_wav(file1)
-    wav2 = convert_webm_to_wav(file2)
+    wav1_path = bytes_to_wav_file(file1_bytes)
+    wav2_path = bytes_to_wav_file(file2_bytes)
 
     try:
-        emb1 = encoder.embed_utterance(preprocess_wav(Path(wav1)))
-        emb2 = encoder.embed_utterance(preprocess_wav(Path(wav2)))
+        emb1 = encoder.embed_utterance(preprocess_wav(wav1_path))
+        emb2 = encoder.embed_utterance(preprocess_wav(wav2_path))
+
 
         similarity = float(
             np.dot(emb1, emb2) /
@@ -133,26 +151,5 @@ def compare_voices(file1, file2, threshold=0.75):
         }
 
     finally:
-        # Cleanup temp files
-        os.remove(wav1)
-        os.remove(wav2)
-
-def convert_webm_to_wav(input_path: str) -> str:
-    """
-    Converts a .webm file to a temporary 16kHz mono WAV file.
-    Returns the path to the WAV file.
-    """
-    tmp_wav = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    tmp_wav.close()
-
-    command = [
-        "ffmpeg",
-        "-y",                     # overwrite if exists
-        "-i", input_path,
-        "-ac", "1",               # mono
-        "-ar", "16000",           # 16kHz
-        tmp_wav.name
-    ]
-
-    subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return tmp_wav.name
+        os.remove(wav1_path)
+        os.remove(wav2_path)

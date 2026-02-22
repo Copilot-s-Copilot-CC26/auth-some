@@ -10,11 +10,6 @@ import VerifyPhone from "@/components/verify-phone";
 import FiveSecondRecorder from "@/components/voice-record";
 import {X} from "lucide-react";
 
-const CoordinatePicker = dynamic(
-  () => import("@/components/coordinate-picker"),
-  { ssr: false }
-)
-
 const Page = () => {
 
   const [c1, setC1] = useState<string|null>(null)
@@ -22,7 +17,6 @@ const Page = () => {
 
   const [emailVerified, setEmailVerified] = useState(false)
   const [phoneVerified, setPhoneVerified] = useState(false)
-  const [coords, setCoords] = useState<[number, number] | null>(null)
   const [face, setFace] = useState<Blob|null>(null)
   const [audio, setAudio] = useState<Blob|null>(null)
 
@@ -34,7 +28,6 @@ const Page = () => {
     // @ts-ignore
     formData.append('phone', document.querySelector('[name="phone"]').value);
 
-    formData.append('sleep-coords', JSON.stringify(coords))
     // @ts-ignore
     formData.append("image", face, "photo.png")
     // @ts-ignore
@@ -43,7 +36,7 @@ const Page = () => {
 
     console.log(data)
 
-    fetch("/api/create_user",
+    fetch("/api/validate_user",
       {
         method: 'POST',
         body: formData
@@ -53,14 +46,6 @@ const Page = () => {
   return (
     <div>
       <form onSubmit={submit} className="flex flex-col items-center justify-center gap-4 p-4">
-        <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
-          <p className="text-lg font-bold">Who are you?</p>
-          <TextField name="First Name" />
-          <TextField name="Middle Name"/>
-          <TextField name="Last Name" />
-          <TextField name="Suffix" />
-        </section>
-
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
           <p className="text-lg font-bold">What is your email?</p>
           <VerifyEmail setter={setEmailVerified} />
@@ -76,24 +61,6 @@ const Page = () => {
           <TextField name="Username" />
           <label htmlFor="password">Password</label>
           <input type="password" id="password" name="password" />
-          <label htmlFor="password">Confirm Password</label>
-          <input type="password" id="password" name="password" />
-          <label htmlFor="password">One More Time</label>
-          <input type="password" id="password" name="password" />
-        </section>
-
-        <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
-          <p className="text-lg font-bold">Where are you?</p>
-          <TextField name="Address Line 1" />
-          <TextField name="Address Line 2" />
-          <TextField name="City" />
-          <TextField name="State" />
-          <TextField name="Zip Code" />
-        </section>
-
-        <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
-          <p className="text-lg font-bold">Where do you sleep?</p>
-          <CoordinatePicker setter={setCoords} />
         </section>
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
@@ -101,31 +68,9 @@ const Page = () => {
           <WebcamCapture setter={setFace} />
         </section>
 
-        {/*<section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">*/}
-        {/*  <p className="text-lg font-bold">Does your drivers license also look like that?</p>*/}
-        {/*  <WebcamCapture />*/}
-        {/*</section>*/}
-
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
           <p className="text-lg font-bold">What do you sound like?</p>
           <FiveSecondRecorder setter={setAudio} />
-        </section>
-
-        <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
-          <p className="text-lg font-bold">Do you have any money?</p>
-          <TextField name="Credit Card Number" />
-          <TextField name="Expiration Month" />
-          <TextField name="Expiration Year" />
-          <TextField name="CVC" />
-        </section>
-
-        <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">
-          <p className="text-lg font-bold">A few more nuts and bolts</p>
-          <TextField name="Social Security Number" />
-          <TextField name="License Plate" />
-          <TextField name="License Plate State" />
-          <TextField name="Date of Birth" />
-          <TextField name="Mother's Maiden Name" />
         </section>
 
         <section className="p-4 border-2 rounded-lg w-1/3 flex flex-col gap-1">

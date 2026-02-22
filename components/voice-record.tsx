@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 
-const FiveSecondRecorder = ({ setter }: { setter: (arg0: string) => void }) => {
+const FiveSecondRecorder = ({ setter }: { setter: (arg0: Blob) => void }) => {
   const [recording, setRecording] = useState(false)
   const [audioURL, setAudioURL] = useState<string | null>(null)
 
@@ -27,8 +27,7 @@ const FiveSecondRecorder = ({ setter }: { setter: (arg0: string) => void }) => {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
         const url = URL.createObjectURL(blob)
         setAudioURL(url)
-        setter(url)
-        console.log(url)
+        setter(blob)
 
         stream.getTracks().forEach((track) => track.stop())
       }

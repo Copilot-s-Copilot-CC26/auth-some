@@ -3,12 +3,9 @@ google-genai
 dotenv
 resend
 vonage
-#face_recognition
-#Pillow
-#numpy
-#resemblyzer
 python-dotenv
 vonage-verify
 numpy
 resemblyzer
 face-recognition
+pillow
