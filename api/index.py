@@ -5,14 +5,19 @@ from dotenv import load_dotenv
 import os
 import resend
 import random
-from twilio.rest import Client
+from vonage import Auth, Vonage, HttpClientOptions
+from vonage_verify import VerifyRequest, SmsChannel
+from vonage_sms import SmsMessage, SmsResponse
+import json
 sqliteurl = "users.db"
 # import numpy as np
-
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///users.db"
 client = genai.Client()
+
+vonageAuth = Auth(api_key="31a5f7e0", api_secret=os.getenv("VONAGE_API_SECRET"))
+vonage = Vonage(auth=vonageAuth)
 
 @app.route("/api/gemini", methods=["POST"])
 def gemini_prompt():
@@ -180,23 +185,38 @@ def verify_code():
 
     return result
 
-
-
-if __name__ == "__main__":
-    app.run(port=5328)
-
-twilio_client = Client(os.getenv("TWILIO_SID"), os.getenv("TWILIO_TOKEN"))
-
 @app.route("/api/send_text_verification", methods=["POST"])
 def send_text_verification():
     data = request.get_json()
     phone = data.get("phone")
-    
-    verification = twilio_client.verify.v2.services(os.getenv("TWILIO_VERIFY_SID")).verifications.create(
-        to=phone,
-        channel="sms"
+    code = str(random.randint(100000, 999999))
+
+    sms_channel = SmsChannel(to=str(phone), from_="19896137088")
+    params = {
+        'brand': 'Vonage',
+        'workflow': [sms_channel],
+    }
+    verify_request = VerifyRequest(**params)
+
+    response = vonage.verify.start_verification(verify_request)
+
+    responseDict = json.loads(response.model_dump_json())
+
+    conn = sqlite3.connect(sqliteurl)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS text_verification_codes (
+            phone TEXT PRIMARY KEY,
+            request_id TEXT NOT NULL
+        )
+    """)
+    cursor.execute(
+        "INSERT OR REPLACE INTO text_verification_codes (phone, request_id) VALUES (?, ?)",
+        (phone, responseDict["request_id"])
     )
-    
+    conn.commit()
+    conn.close()
+
     return jsonify({"message": "Code sent"}), 200
 
 @app.route("/api/verify_text_code", methods=["POST"])
@@ -204,13 +224,22 @@ def verify_text_code():
     data = request.get_json()
     phone = data.get("phone")
     code = data.get("code")
-    
-    result = twilio_client.verify.v2.services(os.getenv("TWILIO_VERIFY_SID")).verification_checks.create(
-        to=phone,
-        code=code
+    conn = sqlite3.connect(sqliteurl)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT request_id FROM text_verification_codes WHERE phone = ?", (phone,)
     )
-    
-    if result.status == "approved":
-        return jsonify({"message": "Verified!"}), 200
+    row = cursor.fetchone()
+
+    if row:
+        response = vonage.verify.check_code(request_id=row[0], code=code)
+        if json.loads(response.model_dump_json())["status"] == 'completed':
+            cursor.execute("DELETE FROM text_verification_codes WHERE phone = ?", (phone,))
+            conn.commit()
+            conn.close()
+            return jsonify({"message": "Verified!"}), 200
+    conn.close()
     return jsonify({"error": "Invalid code"}), 401
 
+if __name__ == "__main__":
+    app.run(port=5328)
