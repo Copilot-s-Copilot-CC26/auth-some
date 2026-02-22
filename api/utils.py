@@ -4,10 +4,9 @@ import numpy as np
 from resemblyzer import VoiceEncoder, preprocess_wav
 import tempfile
 import os
-import subprocess
-from pathlib import Path
 from PIL import Image
 import io
+import secrets
 
 # init tables
 def setup_database(url):
@@ -19,6 +18,9 @@ def setup_database(url):
     conn.execute("PRAGMA foreign_keys = ON")
 
     crsr = conn.cursor()
+
+    # clean out old sessions
+    crsr.execute("DELETE FROM sessions WHERE expires_at <= CURRENT_TIMESTAMP")
 
     # create table users
     crsr.execute(
@@ -90,6 +92,19 @@ def setup_database(url):
         """
     )
 
+    # create session table
+    crsr.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sessions (
+            id TEXT PRIMARY KEY,          -- session token
+            user_id INTEGER NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+        """
+    )
+
     conn.commit()
     conn.close()
 
@@ -128,7 +143,6 @@ def bytes_to_wav_file(audio_bytes):
     temp.close()
     return temp.name
 
-
 def compare_voices(file1_bytes, file2_bytes, threshold=0.75):
     encoder = VoiceEncoder()
 
@@ -153,3 +167,8 @@ def compare_voices(file1_bytes, file2_bytes, threshold=0.75):
     finally:
         os.remove(wav1_path)
         os.remove(wav2_path)
+
+# other utils ig idk
+
+def generate_session_id():
+    return secrets.token_urlsafe(64)

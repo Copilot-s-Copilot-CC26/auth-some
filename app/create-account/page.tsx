@@ -9,7 +9,7 @@ import VerifyEmail from "@/components/verify-email"
 import VerifyPhone from "@/components/verify-phone"
 import FiveSecondRecorder from "@/components/voice-record"
 import {X} from "lucide-react"
-import {motion, AnimatePresence} from "framer-motion"
+import {motion} from "framer-motion"
 
 const CoordinatePicker = dynamic(
   () => import("@/components/coordinate-picker"),
@@ -38,33 +38,52 @@ const Page = () => {
 
   const totalSteps = 12
 
-  const submit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault()
 
-    const formData = new FormData(e.currentTarget)
+  const formData = new FormData(e.currentTarget)
 
-    // @ts-ignore
-    formData.append('email', document.querySelector('[name="email"]').value)
-    // @ts-ignore
-    formData.append('phone', document.querySelector('[name="phone"]').value)
+  // @ts-ignore
+  formData.set("email", document.querySelector('[name="email"]').value)
+  // @ts-ignore
+  formData.set("phone", document.querySelector('[name="phone"]').value)
 
-    formData.append('sleep-coords', JSON.stringify(coords))
-    // @ts-ignore
-    formData.append("image", face, "photo.png")
-    // @ts-ignore
-    formData.append("voice", audio, "voice.webm")
+  formData.set("sleep-coords", JSON.stringify(coords))
 
-    fetch("/api/create_user", {
+  if (face) {
+    // @ts-ignore
+    formData.set("image", face, "photo.png")
+  }
+
+  if (audio) {
+    // @ts-ignore
+    formData.set("voice", audio, "voice.webm")
+  }
+
+  try {
+    const res = await fetch("/api/create_user", {
       method: "POST",
       body: formData,
+      credentials: "include",
     })
-      .then((res) => res.json())
-      .then((json) => console.log(json))
+
+    if (!res.ok) {
+      const data = await res.json()
+      console.error(data)
+      return alert("Signup failed")
+    }
+
+    window.location.href = "/login"
+
+  } catch (err) {
+    console.error(err)
+    alert("Network error")
   }
+}
 
   const canSubmit =
     emailVerified &&
-    phoneVerified &&
+    // phoneVerified &&
     c1 &&
     c2 &&
     face &&
@@ -216,7 +235,7 @@ const Page = () => {
 
             <div>
               {!emailVerified && <p className="text-red-500 font-bold flex items-center"><X/> Unverified Email</p>}
-              {!phoneVerified && <p className="text-red-500 font-bold flex items-center"><X/> Unverified Phone Number</p>}
+              {/*{!phoneVerified && <p className="text-red-500 font-bold flex items-center"><X/> Unverified Phone Number</p>}*/}
               {!face && <p className="text-red-500 font-bold flex items-center"><X/> No Face Photo</p>}
               {!audio && <p className="text-red-500 font-bold flex items-center"><X/> No Voice Recording</p>}
               {!c1 && <p className="text-red-500 font-bold flex items-center"><X/> Incomplete CAPTCHA</p>}

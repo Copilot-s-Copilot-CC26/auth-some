@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 import sqlite3
 from dotenv import load_dotenv
 import os
@@ -7,9 +7,10 @@ import random
 from vonage import Auth, Vonage
 from vonage_verify import VerifyRequest, SmsChannel
 import json
-
 from api.utils import bytes_to_image
-from utils import setup_database, compare_faces, compare_voices
+from utils import setup_database, compare_faces, compare_voices, generate_session_id
+from datetime import datetime, timedelta
+import base64
 
 # BEGIN SETUP
 load_dotenv()
@@ -138,22 +139,6 @@ def validate_user():
     if not username or not password:
         return jsonify({"error": "Username and password are required"}), 400
 
-    # if len(password < 10):
-    #     return jsonify({"error": "Password must be 10 characters or longer"}), 400
-    #
-    # contains_special = False
-    # contains_capital = False
-    # for c in password:
-    #     # if a character is not a letter or a number
-    #     if not c.isalnum():
-    #         contains_special = True
-    #     # if a character is upper case
-    #     elif c.isupper():
-    #         contains_capital = True
-    #
-    # if (not contains_capital) or (not contains_special):
-    #     return jsonify({"error": "Password must contain atleast one capital letter and one special character"}), 400
-
     conn = sqlite3.connect(DB_URL)
     crsr = conn.cursor()
 
@@ -179,7 +164,69 @@ def validate_user():
     voice_result = compare_voices(voice_blob, new_voice.read())
     if not bool(voice_result['match']): return jsonify({"error": "Voice Mismatch"}), 400
 
-    return jsonify({"message": "Login successful"}), 200
+    conn = sqlite3.connect(DB_URL)
+    crsr = conn.cursor()
+
+    session_id = generate_session_id()
+    expires_at = datetime.now() + timedelta(days=7)
+
+    crsr.execute(
+        "INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)",
+        (session_id, user_id, expires_at)
+    )
+    conn.commit()
+    conn.close()
+
+    response = make_response(jsonify({"success": True}))
+    response.set_cookie(
+        "session",
+        session_id,
+        httponly=True,
+        secure=True,
+        samesite="Strict",
+        max_age=60 * 60 * 24 * 7
+    )
+
+    return response
+
+@app.route("/api/validate_session", methods=["GET"])
+def validate_session():
+    session_id = request.cookies.get("session")
+
+    if not session_id:
+        return jsonify({"valid": False}), 401
+
+    conn = sqlite3.connect(DB_URL)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT user_data.*
+        FROM sessions
+        JOIN user_data ON sessions.user_id = user_data.user_id
+        WHERE sessions.id = ?
+        AND sessions.expires_at > CURRENT_TIMESTAMP
+        """,
+        (session_id,)
+    )
+
+    user = cursor.fetchone()
+    conn.close()
+
+    if not user:
+        return jsonify({"valid": False}), 401
+
+    user_dict = dict(user)
+
+    for key, value in user_dict.items():
+        if isinstance(value, (bytes, bytearray)):
+            user_dict[key] = base64.b64encode(value).decode("utf-8")
+
+    return jsonify({
+        "valid": True,
+        "user": user_dict
+    })
 
 #---------------------------END USER MANAGEMENT---------------------------
 

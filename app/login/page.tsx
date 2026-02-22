@@ -3,15 +3,15 @@
 import TextField from "@/components/textField"
 import HCaptcha from "@hcaptcha/react-hcaptcha"
 import { useState } from "react"
-import dynamic from "next/dynamic"
 import WebcamCapture from "@/components/webcam-capture"
 import VerifyEmail from "@/components/verify-email"
 import VerifyPhone from "@/components/verify-phone"
 import FiveSecondRecorder from "@/components/voice-record"
 import { X } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 
 const Page = () => {
+
   const [step, setStep] = useState(0)
   const totalSteps = 7
 
@@ -28,36 +28,52 @@ const Page = () => {
 
   const canSubmit =
     emailVerified &&
-    phoneVerified &&
+    // phoneVerified &&
     c1 &&
     c2 &&
     face &&
     audio
 
-  const submit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
+  e.preventDefault()
 
-    const formData = new FormData(e.currentTarget)
+  const formData = new FormData(e.currentTarget)
 
-    // @ts-ignore
-    formData.append('email', document.querySelector('[name="email"]').value)
-    // @ts-ignore
-    formData.append('phone', document.querySelector('[name="phone"]').value)
+  // @ts-ignore
+  formData.set("email", document.querySelector('[name="email"]').value)
+  // @ts-ignore
+  formData.set("phone", document.querySelector('[name="phone"]').value)
 
+  if (face) {
     // @ts-ignore
-    formData.append("image", face, "photo.png")
-    // @ts-ignore
-    formData.append("voice", audio, "voice.webm")
-
-    fetch("/api/validate_user", {
-      method: "POST",
-      body: formData,
-    })
-      .then((res) => res.json())
-      .then((json) => console.log(json))
+    formData.set("image", face, "photo.png")
   }
 
-  const progress = ((step + 1) / totalSteps) * 100
+  if (audio) {
+    // @ts-ignore
+    formData.set("voice", audio, "voice.webm")
+  }
+
+  try {
+    const res = await fetch("/api/validate_user", {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    })
+
+    if (!res.ok) {
+      const error = await res.json()
+      console.error(error)
+      return alert(`Validation failed: ${error.error}`)
+    }
+
+    window.location.href = "/"
+
+  } catch (err) {
+    console.error(err)
+    alert("Network error")
+  }
+}
 
   return (
     <form
@@ -143,7 +159,7 @@ const Page = () => {
             {!canSubmit && (
               <div>
                 {!emailVerified && <p className="text-red-500 font-bold flex items-center"><X/> Unverified Email</p>}
-                {!phoneVerified && <p className="text-red-500 font-bold flex items-center"><X/> Unverified Phone</p>}
+                {/*{!phoneVerified && <p className="text-red-500 font-bold flex items-center"><X/> Unverified Phone</p>}*/}
                 {!face && <p className="text-red-500 font-bold flex items-center"><X/> No Face Photo</p>}
                 {!audio && <p className="text-red-500 font-bold flex items-center"><X/> No Voice Recording</p>}
                 {!c1 && <p className="text-red-500 font-bold flex items-center"><X/> Incomplete CAPTCHA</p>}
